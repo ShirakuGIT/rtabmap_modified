@@ -84,28 +84,33 @@ def launch_setup(context: LaunchContext, *args, **kwargs):
     'Icp/MaxCorrespondenceDistance': str(max_correspondence_distance),
     'Icp/Strategy': '1',
     'Icp/OutlierRatio': '0.7',
-
-    'Vis/MaxFeatures': '500',
-    'RGBD/CreateOccupancyGrid': 'true',
-    'Kp/MaxFeatures': '500',
-    # 'RGBD/LoopClosureReextractFeatures': 'false',
+    'Vis/MaxDepth': '30.0',
+    'Vis/MaxFeatures': '5000',
+    'RGBD/CreateOccupancyGrid': 'false',
+    'Kp/MaxFeatures': '5000',
+    'RGBD/LoopClosureReextractFeatures': 'false',
     'RGBD/LoopCovLimited': 'false',
     'RGBD/Enabled':         'true',
-    'VhEp/Enabled': 'true',                         # Enable metric SLAM
-    'Rtabmap/LoopThr': '0.05',                      
-    'Optimizer/Iterations': '50', 
+    # 'VhEp/Enabled': 'true',                         # Enable metric SLAM
+    'Rtabmap/LoopThr': '0.03',                      
+    'Optimizer/Iterations': '100', 
+    'Mem/DepthAsMask': 'true',
+    'Vis/DepthAsMask': 'true',
 
-    'Mem/StereoFromMotion': 'true',                 # Parameter used to derive the depth calculations from purely rgb motion
+    'Rtabmap/StatisticLogged': 'true',
+    'Mem/StereoFromMotion': 'false',                 # Parameter used to derive the depth calculations from purely rgb motion
     'Vis/EpipolarGeometryVar': '0.3',
     'Optimizer/Robust': 'true',
-    'Vis/MinInliers': '10',
-    'Rtabmap/DetectionRate': '2',
+    'Vis/MinInliers': '20',
+    'Rtabmap/DetectionRate': '5',
     'Kp/DetectorStrategy': '8',
-    'Vis/SSC': 'false',
+    'Vis/EstimationType': '1',
+    'Vis/SSC': 'true',
     'Vis/FeatureType': '8',
-
-    'Reg/Strategy': '2',                            # Registration through Visual ICP
+    'Rtabmap/PublishStats': "true", 
+    'Reg/Strategy': '1',                            # Registration through Visual ICP
     'Optimizer/Strategy': '1',                      # Use G2O for global optimization
+    'RGBD/LoopClosureIdentityGuess': 'true',
   }
   
   icp_odometry_parameters = {
@@ -125,9 +130,9 @@ def launch_setup(context: LaunchContext, *args, **kwargs):
     icp_odometry_parameters['wait_imu_to_init'] = True
 
   rtabmap_parameters = {
-    'subscribe_depth': False,
+    'subscribe_depth': True,
     'subscribe_rgb': True,
-    'subscribe_rgbd': False,
+    # 'subscribe_rgbd': False,
     
     'subscribe_odom_info': True,
     'subscribe_scan_cloud': True,
@@ -137,14 +142,15 @@ def launch_setup(context: LaunchContext, *args, **kwargs):
     'odom_sensor_sync': True, # This will adjust camera position based on difference between lidar and camera stamps.
 
     # RTAB-Map's internal parameters are strings:
-    'RGBD/ProximityMaxGraphDepth': '0',
+    'RGBD/ProximityBySpace': 'true',      # Enable proximity detection in space
+    'RGBD/ProximityMaxGraphDepth': '5',   # Allow checking nearby nodes
     'RGBD/ProximityPathMaxNeighbors': '1',
     'RGBD/AngularUpdate': '0.05',
     'RGBD/LinearUpdate': '0.05',
     'RGBD/CreateOccupancyGrid': 'false',
     'Mem/NotLinkedNodesKept': 'false',
     'Mem/RecentWmRatio': '0.7',
-    'Mem/STMSize': '100',
+    'Mem/STMSize': '200',
     'Icp/CorrespondenceRatio': str(LaunchConfiguration('min_loop_closure_overlap').perform(context)),
     'publish_pose': True
   }
@@ -156,9 +162,13 @@ def launch_setup(context: LaunchContext, *args, **kwargs):
   else:
     arguments.append('-d') # This will delete the previous database (~/.ros/rtabmap.db)
   
-  remappings = [('odom', 'icp_odom'),
-                ('rgb/image', '/camera/camera/color/image_raw'),
-                ('rgb/camera_info', '/camera/camera/color/camera_info')]
+  remappings = [
+    ('odom', '/icp_odom'),
+    ('rgb/image', '/camera/camera/color/image_raw'),
+    ('depth/image', '/image'),
+    ('rgb/camera_info', '/camera/camera/color/camera_info')
+  ]
+
   if imu_used:
     remappings.append(('imu', LaunchConfiguration('imu_topic')))
   else:
@@ -259,15 +269,15 @@ def generate_launch_description():
       description='RGBD images topic (ignored if empty, override "rgbd_image_topic" if set). Would be the output of a rtabmap_sync\'s rgbdx_sync node.'),
     
     DeclareLaunchArgument(
-      'expected_update_rate', default_value='30.0',
+      'expected_update_rate', default_value='15.0',
       description='Expected lidar frame rate. Ideally, set it slightly higher than actual frame rate, like 15 Hz for 10 Hz lidar scans.'),
     
     DeclareLaunchArgument(
-      'voxel_size', default_value='0.7',
+      'voxel_size', default_value='0.5',
       description='Voxel size (m) of the downsampled lidar point cloud. For indoor, set it between 0.1 and 0.3. For outdoor, set it to 0.5 or over.'),
     
     DeclareLaunchArgument(
-      'min_loop_closure_overlap', default_value='0.15',
+      'min_loop_closure_overlap', default_value='0.20',
       description='Minimum scan overlap pourcentage to accept a loop closure.'),
     
     DeclareLaunchArgument(
